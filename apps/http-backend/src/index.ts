@@ -1,11 +1,12 @@
 import express from 'express';
-import {z} from 'zod';
 import jwt from 'jsonwebtoken';
 import { users } from './db';
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
 import 'dotenv/config'
 import { authenticateToken, AuthRequest} from './middleware/auth.middleware';
+import {createUserSchema, signinSchema, roomCreateSchema} from '@repo/common/types';
+import {prismaClient} from "@repo/db/client";
 
 const JWT_SECRET = process.env.JWT_SECRET || "2345678";
 
@@ -16,20 +17,8 @@ export function generateToken(userId: string){
     return jwt.sign({id: userId}, JWT_SECRET, {expiresIn: "2d"});
 }
 
-const signupSchema = z.object({
-    email:z.email(),
-    password: z.string().min(6),
-    name: z.string()
-});
-
-const signinSchema = z.object({
-    email:z.email(),
-    password: z.string().min(6),
-})
-
-
 app.post('/signup', async (req, res) => {
-    const parsed = signupSchema.safeParse(req.body);
+    const parsed = createUserSchema.safeParse(req.body);
 
     if(!parsed.success){
         return res.status(400).json({
@@ -37,23 +26,25 @@ app.post('/signup', async (req, res) => {
         })
     }
 
-    const {email, password, name} = parsed.data;
+    const {email, password, name, photo} = parsed.data;
 
-    const existingUser = users.find(u => u.email === email);
+    const existingUser = await prismaClient.user.findUnique({
+        where: {email}
+    });
     if(existingUser){
         return res.status(400).json({error: "User already exists"});
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = {
-        id: randomUUID(),
-        email: email,
-        password: hashedPassword,
-        name: name
-    }
-
-    users.push(newUser);
+    const newUser = await prismaClient.user.create({
+        data:{
+            email,
+            password: hashedPassword,
+            name,
+            photo: photo || ""
+        }
+    })
 
     const token = generateToken(newUser.id);
 
@@ -74,7 +65,9 @@ app.post('/signin', async (req, res) => {
 
     const {email, password} = parsed.data;
 
-    const user = users.find(u => u.email === email);
+    const user = await prismaClient.user.findUnique({
+        where:{email}
+    })
 
     if(!user){
         return res.status(400).json({error: "User does not exist"});
@@ -96,13 +89,21 @@ app.post('/signin', async (req, res) => {
 });
 
 app.post('/rooms', authenticateToken, async (req: AuthRequest, res) => {
-    const { name } = req.body;
-    const room = {
-        id: randomUUID(),
-        name,
-        createdBy: req.user.id,
-        createdAt: new Date()
-    };
+
+    const roomData = roomCreateSchema.safeParse(req.body);
+    if(!roomData.success){
+        return res.status(400).json({
+            message: "Invalid Input"
+        })
+    }
+    const {slug} = roomData.data;
+    
+    const room = await prismaClient.room.create({
+        data:{
+            slug,
+            adminId: req.user.id
+        }
+    });
     // Save to DB
     res.json({ room });
 });
