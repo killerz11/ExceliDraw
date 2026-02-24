@@ -1,39 +1,39 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User{
-  id  String  @id @default(uuid())
-  email String  @unique
-  password String 
-  photo String
-  name String
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  photo     String?
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  room  Room[]
-  chats Chat[]
+  chats     Chat[]
+  room      Room[]
 }
 
-model Room{
-  id String @id @default(uuid())
-  slug String @unique
+model Room {
+  id        String   @id @default(uuid())
+  slug      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  adminId String
-  admin User  @relation(fields: [adminId], references: [id])
-  chats Chat[]
+  adminId   String
+  chats     Chat[]
+  admin     User     @relation(fields: [adminId], references: [id])
 }
 
-model Chat{
-  id  Int @id @default(autoincrement())
-  roomId  String
-  userId  String
-  message String
-  room  Room  @relation(fields: [roomId], references: [id])
-  user  User  @relation(fields: [userId], references: [id])
+model Chat {
+  id        Int      @id @default(autoincrement())
+  roomId    String
+  userId    String
+  message   String
+  createdAt DateTime @default(now()) 
+  room      Room     @relation(fields: [roomId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }

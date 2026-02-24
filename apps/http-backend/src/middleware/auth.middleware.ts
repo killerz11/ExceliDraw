@@ -1,14 +1,17 @@
 import jwt from 'jsonwebtoken';
 import {Request, Response, NextFunction} from 'express';
-import 'dotenv/config';
-
-const JWT_SECRET = process.env.JWT_SECRET || "2345678";
 
 export interface AuthRequest extends Request {
-    user?: any; // or { id: string } for better typing
+    user?: any;
 }
 
 export function authenticateToken(req : AuthRequest, res : Response, next: NextFunction){
+    const JWT_SECRET = process.env.JWT_SECRET;
+    
+    if (!JWT_SECRET) {
+        return res.status(500).json({error: "Server configuration error"});
+    }
+    
     const token = req.headers.authorization?.split(' ')[1];
 
     if(!token){
@@ -16,10 +19,12 @@ export function authenticateToken(req : AuthRequest, res : Response, next: NextF
     }
 
     try {
+        console.log("Verifying token with JWT_SECRET:", JWT_SECRET.substring(0, 4) + "****");
         const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded; // Attach user to request
+        req.user = decoded;
         next();
     } catch (error) {
+        console.log("Token verification failed:", error);
         return res.status(403).json({ error: "Invalid token" });
     }
 }

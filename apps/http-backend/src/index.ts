@@ -1,19 +1,30 @@
+import { config } from 'dotenv';
+import * as path from 'path';
+
+// Load .env explicitly from workspace root (2 levels up from src)
+config({ path: path.resolve(__dirname, '../../.env') });
+
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { users } from './db';
-import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
-import 'dotenv/config'
 import { authenticateToken, AuthRequest} from './middleware/auth.middleware';
 import {createUserSchema, signinSchema, roomCreateSchema} from '@repo/common/types';
 import {prismaClient} from "@repo/db/client";
+import { safeParse } from 'zod';
 
-const JWT_SECRET = process.env.JWT_SECRET || "2345678";
+const JWT_SECRET = process.env.JWT_SECRET || "12345678";
+
+if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+}
+
+console.log("JWT_SECRET loaded successfully");
 
 const app = express();
 app.use(express.json());
 
 export function generateToken(userId: string){
+    console.log("Generating token with JWT_SECRET:", JWT_SECRET.substring(0, 4) + "****");
     return jwt.sign({id: userId}, JWT_SECRET, {expiresIn: "2d"});
 }
 
@@ -37,21 +48,29 @@ app.post('/signup', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await prismaClient.user.create({
+    try{
+        const newUser = await prismaClient.user.create({
         data:{
             email,
             password: hashedPassword,
             name,
             photo: photo || ""
         }
-    })
-
-    const token = generateToken(newUser.id);
-
-    return res.status(201).json({
-        message: "User registeration successful",
-        token
     });
+        const token = generateToken(newUser.id);
+
+        return res.status(201).json({
+            message: "User registeration successful",
+            token
+        });
+    }catch(e){
+        return res.status(400).json({
+            message:"User registeration failed",
+            error:e
+        }
+        )
+    }
+    
 });
 
 app.post('/signin', async (req, res) => {
@@ -65,6 +84,7 @@ app.post('/signin', async (req, res) => {
 
     const {email, password} = parsed.data;
 
+    try{
     const user = await prismaClient.user.findUnique({
         where:{email}
     })
@@ -86,6 +106,12 @@ app.post('/signin', async (req, res) => {
         message: "Succesfull login",
         token
     });
+    } catch(e){
+        return res.status(401).json({
+            message: "Run into the error",
+            error:e
+        })
+    }
 });
 
 app.post('/rooms', authenticateToken, async (req: AuthRequest, res) => {
@@ -104,11 +130,24 @@ app.post('/rooms', authenticateToken, async (req: AuthRequest, res) => {
             adminId: req.user.id
         }
     });
-    // Save to DB
     res.json({ room });
 });
 
+app.get('/chats/:roomId', async (req, res) => {
+    const roomId = req.params.roomId;
 
+    const chats = await prismaClient.chat.findMany({
+        where:{
+            roomId: roomId
+        },
+        orderBy:{
+            createdAt: 'asc'
+        },
+        take:50
+    });
+
+    res.json({ chats });
+});
 
 app.listen(5000, () => {
     console.log("server running on port 5000");

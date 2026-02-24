@@ -13,6 +13,5 @@ export const createUserSchema = z.object({
 })
 
 export const roomCreateSchema = z.object({
-    slug : z.string(),
-    adminId : z.string()
+    slug : z.string()
 })
