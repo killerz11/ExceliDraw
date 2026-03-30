@@ -1,3 +1,4 @@
+//http-backend/apps/src/index.ts
 import { config } from 'dotenv';
 import * as path from 'path';
 
@@ -5,14 +6,14 @@ import * as path from 'path';
 config({ path: path.resolve(__dirname, '../../.env') });
 
 import express from 'express';
+import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { authenticateToken, AuthRequest} from './middleware/auth.middleware';
 import {createUserSchema, signinSchema, roomCreateSchema} from '@repo/common/types';
 import {prismaClient} from "@repo/db/client";
-import { safeParse } from 'zod';
 
-const JWT_SECRET = process.env.JWT_SECRET || "12345678";
+const JWT_SECRET = process.env.JWT_SECRET || "123456789";
 
 if (!JWT_SECRET) {
     throw new Error("JWT_SECRET is not defined in environment variables");
@@ -21,6 +22,15 @@ if (!JWT_SECRET) {
 console.log("JWT_SECRET loaded successfully");
 
 const app = express();
+
+// CORS configuration
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 export function generateToken(userId: string){
