@@ -42,7 +42,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         {/* The actual drawing canvas */}
-        <Canvas />
+        <Canvas activeTool={activeTool} />
 
       </div>
 

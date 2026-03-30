@@ -7,7 +7,7 @@ import { getToolHandler } from '../tools';
 // Initial state when canvas first loads
 const initialState: AppState = {
   elements: [],
-  activeTool: 'rect',
+  activeTool: 'line',
   selectedIds: new Set(),
   preview: null,
 };
@@ -18,9 +18,17 @@ function reducer(state: AppState, patch: Partial<AppState>): AppState {
   return { ...state, ...patch };
 }
 
-export default function Canvas() {
+export default function Canvas({activeTool} : {activeTool : string}) {
   // All drawing state lives here
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  // Sync activeTool from parent props into local state
+  useEffect(() => {
+    if (activeTool && activeTool !== state.activeTool) {
+      console.log('🔧 Tool changed:', state.activeTool, '→', activeTool);
+      dispatch({ activeTool: activeTool as any });
+    }
+  }, [activeTool, state.activeTool]);
 
   // Reference to the actual <canvas> DOM element
   const canvasRef = useRef<HTMLCanvasElement>(null);
