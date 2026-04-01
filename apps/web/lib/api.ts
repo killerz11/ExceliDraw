@@ -49,6 +49,8 @@ export const api = {
     request<{ message: string; token: string }>('/signin', {
       method: 'POST', body: JSON.stringify(data),
     }),
+  getRoomBySlug: (slug: string) =>
+    request<{ room: { id: string; slug: string } }>(`/rooms/${slug}`),
   createRoom: (slug: string) =>
     request<{ room: { id: string; slug: string } }>('/rooms', {
       method: 'POST', body: JSON.stringify({ slug }),

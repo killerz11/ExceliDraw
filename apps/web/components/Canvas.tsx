@@ -85,13 +85,12 @@ export default function Canvas({activeTool} : {activeTool : string}) {
   // -------------------------------------------------------
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;  // 0 = left click, ignore anything else
+    
+    console.log("left click");
     isDrawing.current = true;
     const { x, y } = getPos(e);
-
-    // Ask the active tool what to do
     const result = getToolHandler(state.activeTool).onPointerDown(state, x, y);
-
-    // Apply the changes to state
     dispatch(result);
   }, [state, getPos]);
 
@@ -112,6 +111,12 @@ export default function Canvas({activeTool} : {activeTool : string}) {
     const result = getToolHandler(state.activeTool).onPointerUp(state, x, y);
     dispatch(result);
   }, [state, getPos]);
+
+  const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  e.preventDefault();  // stops default browser context menu
+  // for now just log — you can build a real menu later
+  console.log('right click at', e.clientX, e.clientY);
+  }, []);
 
   // -------------------------------------------------------
   // RENDER

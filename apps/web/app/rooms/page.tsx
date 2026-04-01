@@ -18,7 +18,7 @@ export default function RoomsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Create a new room
+  // Check if room exists, if yes navigate to it, otherwise create new room
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!slug.trim()) return;
@@ -26,9 +26,22 @@ export default function RoomsPage() {
     setLoading(true);
 
     try {
-      const res = await api.createRoom(slug.trim());
-      // After creating, go straight into that room
-      router.push(`/room/${res.room.id}`);
+      // First, check if room already exists
+      try {
+        const existingRoom = await api.getRoomBySlug(slug.trim());
+        // Room exists, navigate to it
+        router.push(`/room/${existingRoom.room.id}`);
+        return;
+      } catch (err) {
+        // Room doesn't exist (404), proceed to create it
+        if (err instanceof ApiError && err.status === 404) {
+          const res = await api.createRoom(slug.trim());
+          router.push(`/room/${res.room.id}`);
+        } else {
+          // Some other error occurred
+          throw err;
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -51,7 +64,7 @@ export default function RoomsPage() {
 
       {/* Create room form */}
       <div className="w-full max-w-sm bg-[#161616] border border-[#2a2a2a] rounded-xl px-8 py-8 mb-6">
-        <h2 className="text-sm text-[#888] uppercase tracking-wider mb-4">Create a new room</h2>
+        <h2 className="text-sm text-[#888] uppercase tracking-wider mb-4">Join or create a room</h2>
         <form onSubmit={handleCreate} className="flex flex-col gap-3">
           <input
             type="text"
@@ -73,7 +86,7 @@ export default function RoomsPage() {
             disabled={loading}
             className="bg-white text-black font-medium text-sm rounded-lg py-2.5 hover:bg-[#e0e0e0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Creating...' : 'Create Room'}
+            {loading ? 'Loading...' : 'Join Room'}
           </button>
         </form>
       </div>
