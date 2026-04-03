@@ -12,6 +12,7 @@ const initialState: AppState = {
   preview: null,
 };
 
+
 // Reducer — merges any patch into current state
 // Tools return Partial<AppState> — only what changed
 function reducer(state: AppState, patch: Partial<AppState>): AppState {
@@ -19,6 +20,17 @@ function reducer(state: AppState, patch: Partial<AppState>): AppState {
 }
 
 export default function Canvas({activeTool} : {activeTool : string}) {
+  const history = useRef<Element[][]>([[]]);
+const historyIndex = useRef(0);
+
+function commit(newElements: Element[]) {
+  // discard any redo history
+  history.current = history.current.slice(0, historyIndex.current + 1);
+  // push new snapshot
+  history.current.push(newElements);
+  historyIndex.current = history.current.length - 1;
+}
+
   // All drawing state lives here
   const [state, dispatch] = useReducer(reducer, initialState);
 
@@ -49,6 +61,34 @@ export default function Canvas({activeTool} : {activeTool : string}) {
 
     renderCanvas(ctx, canvas, state);
   }, [state]);
+
+  useEffect(() => {
+  function handleKeyDown(e: KeyboardEvent) {
+    const isMac = navigator.userAgent.includes('Mac');
+    const ctrl = isMac ? e.metaKey : e.ctrlKey;
+
+    if (ctrl && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      // UNDO
+      if (historyIndex.current > 0) {
+        historyIndex.current--;
+        dispatch({ elements: history.current[historyIndex.current] });
+      }
+    }
+
+    if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+      e.preventDefault();
+      // REDO
+      if (historyIndex.current < history.current.length - 1) {
+        historyIndex.current++;
+        dispatch({ elements: history.current[historyIndex.current] });
+      }
+    }
+  }
+
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
 
   // -------------------------------------------------------
   // RESIZE — make canvas fill its container
@@ -110,6 +150,10 @@ export default function Canvas({activeTool} : {activeTool : string}) {
     const { x, y } = getPos(e);
     const result = getToolHandler(state.activeTool).onPointerUp(state, x, y);
     dispatch(result);
+    // in onPointerUp — after dispatch
+    if (result.elements) {
+      commit(result.elements);
+    }
   }, [state, getPos]);
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
