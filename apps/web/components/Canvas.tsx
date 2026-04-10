@@ -15,12 +15,34 @@ const initialState: AppState = {
 
 // Reducer — merges any patch into current state
 // Tools return Partial<AppState> — only what changed
-function reducer(state: AppState, patch: Partial<AppState>): AppState {
-  return { ...state, ...patch };
+function reducer(state: AppState, patch: Partial<AppState> | ((s: AppState) => Partial<AppState>)): AppState {
+  const newPatch = typeof patch === 'function' ? patch(state) : patch;
+  return { ...state, ...newPatch };
 }
 
-export default function Canvas({activeTool} : {activeTool : string}) {
-  const history = useRef<Element[][]>([[]]);
+// move OUTSIDE the component — above the export default line
+function applyRemoteElement(elements: Element[], incoming: Element): Element[] {
+  const map = new Map(elements.map(el => [el.id, el]));
+  map.set(incoming.id, incoming);
+  return Array.from(map.values());
+}
+
+export default function Canvas({ activeTool, sendElement, onRemoteElement }: {
+  activeTool: string;
+  sendElement: (element: Element) => void;
+  onRemoteElement: (handler: (el: Element) => void) => void;
+}) {
+
+   // All drawing state lives here
+const [state, dispatch] = useReducer(reducer, initialState);
+  // Inside Canvas.tsx
+const stateRef = useRef(state);
+// Reference to the actual <canvas> DOM element
+const canvasRef = useRef<HTMLCanvasElement>(null);
+// isDrawing is a ref NOT state — changes every pointermove
+// using useState here would cause hundreds of wasted re-renders per drag
+const isDrawing = useRef(false);
+const history = useRef<Element[][]>([[]]);
 const historyIndex = useRef(0);
 
 function commit(newElements: Element[]) {
@@ -31,8 +53,17 @@ function commit(newElements: Element[]) {
   historyIndex.current = history.current.length - 1;
 }
 
-  // All drawing state lives here
-  const [state, dispatch] = useReducer(reducer, initialState);
+useEffect(() => {
+  stateRef.current = state;
+}, [state]);
+
+useEffect(() => {
+  onRemoteElement((remoteElement: Element) => {
+    dispatch(prev => ({           // ← functional update
+      elements: applyRemoteElement(prev.elements, remoteElement)
+    }));
+  });
+}, [onRemoteElement]);
 
   // Sync activeTool from parent props into local state
   useEffect(() => {
@@ -41,13 +72,6 @@ function commit(newElements: Element[]) {
       dispatch({ activeTool: activeTool as any });
     }
   }, [activeTool, state.activeTool]);
-
-  // Reference to the actual <canvas> DOM element
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // isDrawing is a ref NOT state — changes every pointermove
-  // using useState here would cause hundreds of wasted re-renders per drag
-  const isDrawing = useRef(false);
 
   // -------------------------------------------------------
   // RENDER — runs every time state changes
@@ -143,18 +167,20 @@ function commit(newElements: Element[]) {
     dispatch(result);
   }, [state, getPos]);
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing.current) return;
-
-    isDrawing.current = false;
-    const { x, y } = getPos(e);
-    const result = getToolHandler(state.activeTool).onPointerUp(state, x, y);
-    dispatch(result);
-    // in onPointerUp — after dispatch
-    if (result.elements) {
-      commit(result.elements);
-    }
-  }, [state, getPos]);
+ const onPointerUp = useCallback((e: any) => {
+  if (!isDrawing.current) return;
+  isDrawing.current = false;
+  const { x, y } = getPos(e);
+  const result = getToolHandler(state.activeTool).onPointerUp(state, x, y);
+  
+  dispatch(result);        // ← UI updates first
+  
+  if (result.elements) {
+    commit(result.elements);
+    const newElement = result.elements[result.elements.length - 1];
+    sendElement(newElement);  // ← network sync after
+  }
+}, [state, getPos, sendElement]);
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
   e.preventDefault();  // stops default browser context menu

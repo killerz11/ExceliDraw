@@ -1,4 +1,5 @@
 import { AppState, PencilElement } from '../lib/types';
+import { generateUUID } from '../lib/uuid';
 
 interface ToolHandler {
   onPointerDown(state: AppState, x: number, y: number): Partial<AppState>;
@@ -11,7 +12,7 @@ export const pencilTool: ToolHandler = {
   onPointerDown(state, x, y) {
     // Start a new pencil element with just one point
     const preview: PencilElement = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: 'pencil',
       points: [{ x, y }],   // first point is where user clicked
       strokeColor: '#ffffff',

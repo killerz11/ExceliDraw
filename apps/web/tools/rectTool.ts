@@ -1,4 +1,5 @@
 import { AppState, RectElement } from '../lib/types';
+import { generateUUID } from '../lib/uuid';
 
 // The ToolHandler interface — every tool follows this exact shape
 interface ToolHandler {
@@ -21,7 +22,7 @@ export const rectTool: ToolHandler = {
 
     // Create a zero-size rect at the click point as preview
     const preview: RectElement = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: 'rect',
       x: startX,
       y: startY,

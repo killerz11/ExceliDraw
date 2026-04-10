@@ -20,13 +20,26 @@ const rooms = new Map<string, Set<string>>();
 // In-memory chat state for active rooms
 const roomChatStates = new Map<string, RoomChatState>();
 
+// Add to existing in-memory maps
+const roomCanvasState = new Map<string, Map<string, Element>>(); // roomId → elementId → element
+const dirtyRooms = new Set<string>(); // rooms needing DB flush
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
     throw new Error("JWT_SECRET is not defined");
 }
 
-const wss = new WebSocketServer({ port: 8080 });
+const PORT = 8080;
+const HOST = '0.0.0.0';
+
+const wss = new WebSocketServer({ 
+    port: PORT,
+    host: HOST
+});
+
+console.log(`🚀 WebSocket server starting on ws://${HOST}:${PORT}`);
+console.log(`📡 Accessible on network at ws://<your-ip>:${PORT}`);
 
 function broadcastToRoom(roomId: string, message: any, excludeUserId?: string) {
     const userIds = rooms.get(roomId);
@@ -148,31 +161,44 @@ wss.on('connection', (ws, req) => {
 
     const token = new URL(req.url, 'http://localhost').searchParams.get('token') || "";
     const userId = checkUser(token);
+    console.log("\n🟢 NEW CONNECTION ATTEMPT");
+    console.log("Token (first 20):", token.substring(0, 20));
+    console.log("Decoded userId:", userId);
 
     if (!userId) {
+        console.log("❌ INVALID TOKEN:", token);
         ws.close(1008, 'Invalid token');
         return;
     }
-
+    console.log("🟢 CONNECT:", userId);
+    console.log("Connections:", connections.size);
     connections.set(userId, {
         ws,
         rooms: new Set()
     });
+    console.log("✅ CONNECTION STORED for user:", userId);
+    console.log("📊 Total connections:", connections.size);
 
     ws.on('message', async function message(data) {
         console.log(`\n[Message] Received from user ${userId}:`, data.toString());
-        
+        const senderId = userId;
         try {
             const parsedData = JSON.parse(data.toString());
             const { type, payload } = parsedData;
+            console.log("📦 Parsed message:", parsedData);
             
             console.log(`[Message] Type: ${type}, Payload:`, payload);
             console.log(`[State] Total connections: ${connections.size}, Total rooms: ${rooms.size}`);
             
             switch (type) {
                 case 'join_room': {
+                    console.log("\n📥 JOIN ROOM REQUEST");
+                    console.log("User:", userId);
+                    console.log("Payload:", payload);
+
                     const userConn = connections.get(userId);
-                    
+                    console.log("🔍 userConn exists?", !!userConn);
+
                     if (!userConn) {
                         ws.send(JSON.stringify({
                             type: 'error',
@@ -202,6 +228,10 @@ wss.on('connection', (ws, req) => {
                     // Add user to room
                     rooms.get(roomId)?.add(userId);
 
+                    console.log("✅ User added to room:", roomId);
+                    console.log("👥 Users in room:", Array.from(rooms.get(roomId) || []));
+                    console.log("🏠 User's rooms:", Array.from(userConn.rooms));
+
                     // Load chat history for the room
                     const chatState = await getChatState(roomId);
                     
@@ -221,6 +251,7 @@ wss.on('connection', (ws, req) => {
                     
                     console.log(`User ${userId} joined room ${roomId}`);
                     break;
+                    
                 }
                 
                 case 'leave_room': {
@@ -344,7 +375,7 @@ wss.on('connection', (ws, req) => {
                     chatState.lastModified = new Date();
                     chatState.isDirty = true;
 
-                    // Broadcast message to all users in the room (including sender)
+                    // Broadcast message to all users in the room (excluding sender)
                     broadcastToRoom(roomId, {
                         type: 'chat',
                         payload: {
@@ -353,9 +384,46 @@ wss.on('connection', (ws, req) => {
                             message,
                             timestamp: chatMessage.timestamp
                         }
-                    });
+                    }, userId);
                     
                     console.log(`[Chat] User ${userId} sent message to room ${roomId}: ${message}`);
+                    break;
+                }
+
+                case 'element_update':{
+                    const{roomId, element} = payload;
+
+                    console.log("\n🎨 ELEMENT UPDATE RECEIVED");
+                    console.log("From user:", senderId);
+                    console.log("Payload:", payload);
+
+                    const senderConn = connections.get(senderId);
+                    console.log("🔍 senderConn exists?", !!senderConn);
+                    if (senderConn) {
+                        console.log("🏠 Sender rooms:", Array.from(senderConn.rooms));
+                    }
+
+                    const usersInRoom = rooms.get(roomId);
+                    console.log("👥 Users in this room:", usersInRoom ? Array.from(usersInRoom) : "NO ROOM");
+
+                    if(!usersInRoom) break;
+
+                    usersInRoom.forEach(userId => {
+                        console.log("➡️ Trying to send to:", userId);
+                        if(userId == senderId) return;
+                        const connection = connections.get(userId);
+                        if (!connection) {
+                            console.log("❌ No connection found for:", userId);
+                            return;
+                        }
+                        console.log("📡 WS state:", connection.ws.readyState);
+                        if (connection.ws.readyState === WebSocket.OPEN){
+                            connection.ws.send(JSON.stringify({
+                                type: 'element_update',
+                                payload: { element }
+                            }));
+                        }
+                    });
                     break;
                 }
                 
@@ -375,6 +443,10 @@ wss.on('connection', (ws, req) => {
     });
     
     ws.on('close', () => {
+    console.log("\n🔌 DISCONNECT");
+    console.log("User:", userId);
+    console.log("Before cleanup - connections:", connections.size, "rooms:", rooms.size);
+
     const userConn = connections.get(userId);
     
     if (userConn) {
