@@ -1,4 +1,3 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null; // Ensure this runs only in the browser
@@ -23,6 +22,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T>{
+  // Resolve BASE_URL at call time so window.location is available
+  const BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
+    `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5000`;
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,

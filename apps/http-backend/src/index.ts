@@ -23,9 +23,9 @@ console.log("JWT_SECRET loaded successfully");
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - Allow all origins in development
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: true, // Allow all origins
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -191,6 +191,10 @@ app.get('/chats/:roomId', async (req, res) => {
     res.json({ chats });
 });
 
-app.listen(5000, () => {
-    console.log("server running on port 5000");
+const PORT = parseInt(process.env.PORT || '5000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+    console.log(`🚀 HTTP Backend running on http://${HOST}:${PORT}`);
+    console.log(`📡 Accessible on network at http://100.73.210.34:${PORT}`);
 });

@@ -16,9 +16,8 @@ interface UseRoomReturn {
   sendElement: (element: Element) => void;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
-
-export function useRoom(roomId: string): UseRoomReturn {
+export function useRoom(roomId: string,
+  onElementReceived: (element: Element) => void): UseRoomReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -35,7 +34,7 @@ export function useRoom(roomId: string): UseRoomReturn {
   const sendElement = useCallback((element: Element) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
-        type: 'draw',
+        type: 'element_update',
         payload: { roomId, element }
       }));
     }
@@ -43,17 +42,28 @@ export function useRoom(roomId: string): UseRoomReturn {
 
   useEffect(() => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      console.error('❌ No token found - user not logged in');
+      return;
+    }
+
+    // Resolve WS_URL at runtime so window.location is available
+    const WS_URL = process.env.NEXT_PUBLIC_WS_URL ||
+      `ws://${window.location.hostname}:8080`;
+
+    console.log('🔌 Attempting WebSocket connection to:', WS_URL);
+    console.log('🎫 Token:', token.substring(0, 20) + '...');
 
     // Connect to WebSocket with token
     const ws = new WebSocket(`${WS_URL}?token=${token}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('✅ WebSocket connected successfully');
       setConnected(true);
       
       // Join the room
+      console.log('📨 Sending join_room for:', roomId);
       ws.send(JSON.stringify({
         type: 'join_room',
         payload: { roomId }
@@ -61,16 +71,18 @@ export function useRoom(roomId: string): UseRoomReturn {
     };
 
     ws.onmessage = (event) => {
+      console.log('📩 Received message:', event.data);
       try {
         const data = JSON.parse(event.data);
         
         switch (data.type) {
           case 'joined_room':
-            console.log('Joined room:', data.payload);
+            console.log('✅ Joined room:', data.payload);
             // Load chat history if provided
             if (data.payload.chatHistory) {
               setMessages(data.payload.chatHistory);
             }
+            
             break;
             
           case 'chat':
@@ -80,23 +92,30 @@ export function useRoom(roomId: string): UseRoomReturn {
               timestamp: data.payload.timestamp
             }]);
             break;
+
+          case 'element_update':
+            console.log('🎨 Received element update:', data.payload.element);
+            onElementReceived(data.payload.element);
+            break;  
             
           case 'error':
-            console.error('WebSocket error:', data.payload);
+            console.error('❌ WebSocket error message:', data.payload);
             break;
         }
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error('❌ Failed to parse WebSocket message:', error);
       }
     };
 
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('❌ WebSocket connection error - Is ws-backend running on port 8080?');
+      console.error('Error details:', error);
       setConnected(false);
     };
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
+    ws.onclose = (event) => {
+      console.log('🔌 WebSocket disconnected');
+      console.log('Close code:', event.code, 'Reason:', event.reason);
       setConnected(false);
     };
 

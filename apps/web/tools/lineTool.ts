@@ -1,4 +1,5 @@
 import { AppState, LineElement } from '../lib/types';
+import { generateUUID } from '../lib/uuid';
 
 interface ToolHandler {
   onPointerDown(state: AppState, x: number, y: number): Partial<AppState>;
@@ -16,7 +17,7 @@ export const lineTool: ToolHandler = {
     startY = y;
 
     const preview: LineElement = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: 'line',
       x1: startX,   // start point
       y1: startY,

@@ -1,4 +1,5 @@
 import { AppState, EllipseElement } from '../lib/types';
+import { generateUUID } from '../lib/uuid';
 
 interface ToolHandler {
   onPointerDown(state: AppState, x: number, y: number): Partial<AppState>;
@@ -16,7 +17,7 @@ export const ellipseTool: ToolHandler = {
     startY = y;
 
     const preview: EllipseElement = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: 'ellipse',
       cx: x,       // center starts at click point
       cy: y,

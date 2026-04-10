@@ -1,10 +1,10 @@
 'use client';
-import { use, useState } from 'react';
+import { use, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRoom } from '../../../hooks/useRoom';
 import Canvas from '../../../components/Canvas';
 import ToolBar from '../../../components/ToolBar';
-import { ToolType } from '../../../lib/types';
+import { ToolType, Element } from '../../../lib/types';  // Add Element import
 
 export default function RoomPage({ params }: { params: Promise<{ id: string }> }) {
   useAuth(); // redirect to /signin if no token
@@ -12,9 +12,16 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   // Next.js 15 — params is a Promise, must unwrap with use()
   const { id } = use(params);
 
-  // WebSocket connection — gives us chat + sendElement for Phase 5
-  const { messages, connected, sendMessage, sendElement } = useRoom(id);
+  const remoteElementHandler = useRef<((el: Element) => void) | null>(null);
+  const onElementReceived = useCallback((element: Element) => {
+    remoteElementHandler.current?.(element);
+  }, []); // never changes — remoteElementHandler is a ref
 
+  const handleRemoteElement = useCallback((handler: (el: Element) => void) => {
+    remoteElementHandler.current = handler;
+  }, []);
+
+const { messages, connected, sendMessage, sendElement } = useRoom(id, onElementReceived);
   // Active drawing tool state
   const [activeTool, setActiveTool] = useState<ToolType>('rect');
 
@@ -41,9 +48,13 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {/* The actual drawing canvas */}
-        <Canvas activeTool={activeTool} />
-
+        
+      
+      <Canvas
+      activeTool={activeTool}
+      sendElement={sendElement}
+      onRemoteElement={handleRemoteElement}
+    />
       </div>
 
     </div>
