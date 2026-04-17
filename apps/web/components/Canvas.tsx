@@ -27,10 +27,11 @@ function applyRemoteElement(elements: Element[], incoming: Element): Element[] {
   return Array.from(map.values());
 }
 
-export default function Canvas({ activeTool, sendElement, onRemoteElement }: {
+export default function Canvas({ activeTool, sendElement, onRemoteElement, onElementsLoaded }: {
   activeTool: string;
   sendElement: (element: Element) => void;
   onRemoteElement: (handler: (el: Element) => void) => void;
+  onElementsLoaded: (handler: (els: Element[]) => void) => void;
 }) {
 
    // All drawing state lives here
@@ -58,12 +59,13 @@ useEffect(() => {
 }, [state]);
 
 useEffect(() => {
-  onRemoteElement((remoteElement: Element) => {
-    dispatch(prev => ({           // ← functional update
-      elements: applyRemoteElement(prev.elements, remoteElement)
-    }));
+  onElementsLoaded((elements: Element[]) => {
+    dispatch({ elements });
+    // Seed history with loaded state so undo doesn't go to empty canvas
+    history.current = [elements];
+    historyIndex.current = 0;
   });
-}, [onRemoteElement]);
+}, [onElementsLoaded]);
 
   // Sync activeTool from parent props into local state
   useEffect(() => {

@@ -1,10 +1,11 @@
+
 import {WebSocketServer, WebSocket} from "ws";
 import jwt from 'jsonwebtoken';
 import { config } from 'dotenv';
 import * as path from 'path';
 import prismaClient from "@repo/db/client";
 import { UserConnection, ChatMessage, RoomChatState } from "./types";
-
+import { loadRoomElements, persistElement } from './persistence'
 // Load .env from workspace root
 config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -20,9 +21,7 @@ const rooms = new Map<string, Set<string>>();
 // In-memory chat state for active rooms
 const roomChatStates = new Map<string, RoomChatState>();
 
-// Add to existing in-memory maps
-const roomCanvasState = new Map<string, Map<string, Element>>(); // roomId → elementId → element
-const dirtyRooms = new Set<string>(); // rooms needing DB flush
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -235,12 +234,15 @@ wss.on('connection', (ws, req) => {
                     // Load chat history for the room
                     const chatState = await getChatState(roomId);
                     
-                    // Send confirmation
+                    const elements = await loadRoomElements(roomId)
+
                     ws.send(JSON.stringify({
                         type: 'joined_room',
-                        payload: { roomId,
-                                   chatHistory: chatState.messages
-                         }
+                        payload: {
+                            roomId,
+                            chatHistory: chatState.messages,
+                            elements
+                        }
                     }));
                     
                     // Notify other users in the room
@@ -424,8 +426,10 @@ wss.on('connection', (ws, req) => {
                             }));
                         }
                     });
+                    await persistElement(roomId, element)
                     break;
                 }
+                
                 
                 default:
                     ws.send(JSON.stringify({

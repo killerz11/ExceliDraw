@@ -16,6 +16,7 @@ model User {
   updatedAt DateTime @updatedAt
   chats     Chat[]
   room      Room[]
+  members RoomMember[]
 }
 
 model Room {
@@ -26,6 +27,8 @@ model Room {
   adminId   String
   chats     Chat[]
   admin     User     @relation(fields: [adminId], references: [id])
+  elements    Element[]
+  members     RoomMember[]
 }
 
 model Chat {
@@ -38,4 +41,29 @@ model Chat {
   user      User     @relation(fields: [userId], references: [id])
 }
 
+model Element {
+  id        String   @id
+  roomId    String
+  type      String
+  data      Json
+  version   Int      @default(1)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  room      Room     @relation(fields: [roomId], references: [id])
 
+  @@index([roomId])
+  @@index([roomId, isDeleted])
+  @@index([roomId, updatedAt])
+}
+
+model RoomMember {
+  roomId   String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  room     Room     @relation(fields: [roomId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@id([roomId, userId])
+}
