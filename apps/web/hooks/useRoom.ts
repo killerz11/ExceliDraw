@@ -17,7 +17,8 @@ interface UseRoomReturn {
 }
 
 export function useRoom(roomId: string,
-  onElementReceived: (element: Element) => void): UseRoomReturn {
+  onElementReceived: (element: Element) => void, 
+  onElementsLoaded: (elements: Element[]) => void): UseRoomReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -82,7 +83,9 @@ export function useRoom(roomId: string,
             if (data.payload.chatHistory) {
               setMessages(data.payload.chatHistory);
             }
-            
+            if (data.payload.elements && data.payload.elements.length > 0) {
+              onElementsLoaded(data.payload.elements);
+            }
             break;
             
           case 'chat':
